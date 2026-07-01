@@ -42,8 +42,8 @@ Fill in `.env.local` with your Firebase credentials:
 
 ```env
 # Login credentials (change in production)
-ADMIN_EMAIL=admin
-ADMIN_PASSWORD=admin
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
 
 # JWT secret (generate a long random string for production)
 JWT_SECRET=your-long-random-string
