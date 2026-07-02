@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BLOOD_GROUPS } from "@/lib/constants";
+import { formatName } from "@/lib/utils";
 import { Ban, CheckCircle, Download, ShieldAlert } from "lucide-react";
 
 interface UserRow {
@@ -22,9 +23,8 @@ interface UserRow {
   mobileNumber: string;
   email?: string;
   bloodGroup: string;
-  district: string;
-  subdistrict: string;
-  currentAddress?: string;
+  locationAddress?: string;
+  savedAddresses?: Array<{ id: string; label: string; addressText: string; latitude?: number; longitude?: number }>;
   gender?: string;
   dateOfBirth?: string;
   isDonor: boolean;
@@ -36,6 +36,10 @@ interface UserRow {
   image?: string;
   communities?: string[];
   createdAt: string;
+  country?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  geohash?: string;
 }
 
 const columns: Column<UserRow>[] = [
@@ -49,7 +53,7 @@ const columns: Column<UserRow>[] = [
         </div>
         <div>
           <p className="font-medium text-sm">
-            {user.firstName} {user.lastName}
+            {formatName(user.firstName, user.lastName)}
           </p>
           {user.email && (
             <p className="text-xs text-muted-foreground truncate max-w-[180px]">
@@ -73,9 +77,36 @@ const columns: Column<UserRow>[] = [
     ),
   },
   {
-    key: "district",
-    label: "District",
-    render: (user) => <span className="text-sm">{user.district}</span>,
+    key: "country",
+    label: "Country",
+    render: (user) =>
+      user.country ? (
+        <span className="text-sm">{user.country}</span>
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
+      ),
+    hideOnMobile: true,
+  },
+  {
+    key: "location",
+    label: "Location",
+    render: (user) => {
+      const hasSaved =
+        Array.isArray(user.savedAddresses) && user.savedAddresses.length > 0;
+      const hasCoords = user.latitude != null && user.longitude != null;
+      if (hasSaved && hasCoords) {
+        return (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+            <span className="h-2 w-2 rounded-full bg-green-500" /> Set
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-gray-300" /> Not set
+        </span>
+      );
+    },
     hideOnMobile: true,
   },
   {
@@ -189,7 +220,8 @@ export default function UsersPage() {
 
       const headers = [
         "First Name", "Last Name", "Mobile", "Email", "Blood Group",
-        "District", "Subdistrict", "Address", "Gender", "Date of Birth",
+        "Country", "Latitude", "Longitude", "Geohash",
+        "Location Address", "Saved Addresses", "Gender", "Date of Birth",
         "Donor", "Emergency Donor", "Banned", "Online", "Donations",
         "Badge", "Communities", "Joined",
         "UID", "Token",
@@ -201,9 +233,12 @@ export default function UsersPage() {
         u.mobileNumber || "",
         `"${(u.email || "").toString().replace(/"/g, '""')}"`,
         u.bloodGroup || "",
-        u.district || "",
-        u.subdistrict || "",
-        `"${(u.currentAddress || "").toString().replace(/"/g, '""')}"`,
+        u.country || "",
+        u.latitude ?? "",
+        u.longitude ?? "",
+        u.geohash || "",
+        `"${(u.locationAddress || "").toString().replace(/"/g, '""')}"`,
+        `"${(Array.isArray(u.savedAddresses) ? (u.savedAddresses as Array<{ addressText?: string }>).map((a) => a.addressText || "").join("; ") : "").replace(/"/g, '""')}"`,
         u.gender || "",
         u.dateOfBirth || "",
         u.isDonor ? "Yes" : "No",

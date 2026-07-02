@@ -53,10 +53,9 @@ FIREBASE_PROJECT_ID=your-project-id
 FIREBASE_CLIENT_EMAIL=your-client-email
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
-# Firestore collection override
-# Use "users_test" when the Flutter app runs in development mode
+# Firestore collection name for users
 # Defaults to "users" if not set
-FIREBASE_USERS_COLLECTION=users_test
+FIREBASE_USERS_COLLECTION=users
 ```
 
 ### Run

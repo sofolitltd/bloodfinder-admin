@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { formatName } from "@/lib/utils";
 
 interface FullUserDetail {
   donations: Record<string, unknown>[];
@@ -96,7 +97,7 @@ export default function UserDetailPage() {
     );
   }
 
-  const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown User";
+  const fullName = formatName(user.firstName as string, user.lastName as string);
 
   return (
     <div className="space-y-6">
@@ -155,16 +156,42 @@ export default function UserDetailPage() {
                 </div>
                 <div>
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" /> District / Subdistrict
+                    <MapPin className="h-3 w-3" /> Location
                   </p>
-                  <p className="font-medium">
-                    {String(user.district || "—")}
-                    {user.subdistrict ? ` / ${user.subdistrict}` : ""}
-                  </p>
+                  <p className="font-medium">{String(user.locationAddress || "—")}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Address</p>
-                  <p className="font-medium">{String(user.currentAddress || "—")}</p>
+                  <p className="text-xs text-muted-foreground">Country</p>
+                  <p className="font-medium">{String(user.country || "—")}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Coordinates</p>
+                  {user.latitude != null && user.longitude != null ? (
+                    <p className="font-medium font-mono text-xs">
+                      {Number(user.latitude).toFixed(5)}, {Number(user.longitude).toFixed(5)}
+                    </p>
+                  ) : (
+                    <p className="font-medium">—</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Geohash</p>
+                  <p className="font-medium font-mono">{String(user.geohash || "—")}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Saved Addresses</p>
+                  {Array.isArray(user.savedAddresses) && user.savedAddresses.length > 0 ? (
+                    <div className="space-y-1.5 mt-1">
+                      {(user.savedAddresses as Array<{ label?: string; addressText?: string }>).map((addr, i) => (
+                        <p key={i} className="font-medium text-sm">
+                          {addr.label ? <span className="text-muted-foreground">{addr.label}: </span> : null}
+                          {addr.addressText || "—"}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="font-medium">Not set up</p>
+                  )}
                 </div>
                 <div>
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
