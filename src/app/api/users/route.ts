@@ -27,31 +27,45 @@ export async function GET(request: NextRequest) {
     if (district) query = query.where("district", "==", district);
     if (donorStatus === "donor") query = query.where("isDonor", "==", true);
     else if (donorStatus === "non-donor") query = query.where("isDonor", "==", false);
+    else if (donorStatus === "emergency") query = query.where("isEmergencyDonor", "==", true);
 
     query = query.orderBy("createdAt", "desc");
 
-    const countSnap = await query.count().get();
-    const totalCount = countSnap.data().count;
-    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-
     const offset = (page - 1) * PAGE_SIZE;
-    const snapshot = await query.offset(offset).limit(PAGE_SIZE).get();
 
-    let users = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Record<string, unknown>[];
+    let users: Record<string, unknown>[];
+    let totalCount: number;
 
     if (search) {
+      const allSnap = await query.get();
+      let allUsers = allSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Record<string, unknown>[];
+
       const lowerSearch = search.toLowerCase();
-      users = users.filter(
+      allUsers = allUsers.filter(
         (u: Record<string, unknown>) =>
           String(u.firstName || "").toLowerCase().includes(lowerSearch) ||
           String(u.lastName || "").toLowerCase().includes(lowerSearch) ||
           String(u.mobileNumber || "").toLowerCase().includes(lowerSearch) ||
           String(u.email || "").toLowerCase().includes(lowerSearch)
       );
+
+      totalCount = allUsers.length;
+      users = allUsers.slice(offset, offset + PAGE_SIZE);
+    } else {
+      const countSnap = await query.count().get();
+      totalCount = countSnap.data().count;
+
+      const snapshot = await query.offset(offset).limit(PAGE_SIZE).get();
+      users = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Record<string, unknown>[];
     }
+
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
     return NextResponse.json({ users, totalPages, totalCount, page });
   } catch (error) {

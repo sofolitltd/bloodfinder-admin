@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users } from "lucide-react";
+import { Users, Bell } from "lucide-react";
 
 export default function DashboardPage() {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [totalNotifications, setTotalNotifications] = useState<number | null>(null);
+  const [notifLoading, setNotifLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/users?page=1&limit=1")
@@ -18,6 +21,16 @@ export default function DashboardPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/announcements")
+      .then((res) => res.json())
+      .then((data) => {
+        setTotalNotifications(data.announcements?.length ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setNotifLoading(false));
   }, []);
 
   return (

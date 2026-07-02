@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -163,14 +163,31 @@ const columns: Column<UserRow>[] = [
 
 export default function UsersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [bloodGroup, setBloodGroup] = useState("");
-  const [donorStatus, setDonorStatus] = useState("");
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [bloodGroup, setBloodGroup] = useState(searchParams.get("bloodGroup") || "");
+  const [donorStatus, setDonorStatus] = useState(searchParams.get("donorStatus") || "");
+  const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
   const [totalPages, setTotalPages] = useState(1);
+
+  const syncUrl = useCallback(
+    (overrides: { search?: string; bloodGroup?: string; donorStatus?: string; page?: number }) => {
+      const params = new URLSearchParams();
+      const s = overrides.search ?? search;
+      const bg = overrides.bloodGroup ?? bloodGroup;
+      const ds = overrides.donorStatus ?? donorStatus;
+      const p = overrides.page ?? page;
+      if (s) params.set("search", s);
+      if (bg) params.set("bloodGroup", bg);
+      if (ds) params.set("donorStatus", ds);
+      params.set("page", String(p));
+      router.replace(`/users?${params}`, { scroll: false });
+    },
+    [router, search, bloodGroup, donorStatus, page],
+  );
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -203,6 +220,26 @@ export default function UsersPage() {
   const handleSearchChange = (value: string) => {
     setSearch(value);
     setPage(1);
+    syncUrl({ search: value, page: 1 });
+  };
+
+  const handleBloodGroupChange = (v: string | null) => {
+    const val = !v || v === "all" ? "" : v;
+    setBloodGroup(val);
+    setPage(1);
+    syncUrl({ bloodGroup: val, page: 1 });
+  };
+
+  const handleDonorStatusChange = (v: string | null) => {
+    const val = !v || v === "all" ? "" : v;
+    setDonorStatus(val);
+    setPage(1);
+    syncUrl({ donorStatus: val, page: 1 });
+  };
+
+  const handlePageChange = (p: number) => {
+    setPage(p);
+    syncUrl({ page: p });
   };
 
   const downloadCsv = async () => {
@@ -293,17 +330,14 @@ export default function UsersPage() {
         onSearchChange={handleSearchChange}
         page={page}
         totalPages={totalPages}
-        onPageChange={setPage}
+        onPageChange={handlePageChange}
         emptyMessage="No users found."
         onRowClick={(user) => router.push(`/users/${user.id}`)}
         filterContent={
           <div className="flex gap-2">
             <Select
               value={bloodGroup}
-              onValueChange={(v) => {
-                setBloodGroup(!v || v === "all" ? "" : v);
-                setPage(1);
-              }}
+              onValueChange={handleBloodGroupChange}
             >
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Blood Group" />
@@ -319,10 +353,7 @@ export default function UsersPage() {
             </Select>
             <Select
               value={donorStatus}
-              onValueChange={(v) => {
-                setDonorStatus(!v || v === "all" ? "" : v);
-                setPage(1);
-              }}
+              onValueChange={handleDonorStatusChange}
             >
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Donor Status" />
@@ -331,6 +362,7 @@ export default function UsersPage() {
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="donor">Donors</SelectItem>
                 <SelectItem value="non-donor">Non-Donors</SelectItem>
+                <SelectItem value="emergency">Emergency Donors</SelectItem>
               </SelectContent>
             </Select>
           </div>

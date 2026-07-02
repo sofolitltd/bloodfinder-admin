@@ -302,6 +302,18 @@ export default function UserDetailPage() {
             {user.isDonor ? "Remove Donor Status" : "Mark as Donor"}
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              router.push(
+                `/notifications/send?userId=${params.id}&name=${encodeURIComponent(fullName)}`
+              )
+            }
+          >
+            <Mail className="mr-1.5 h-4 w-4" />
+            Send Notification
+          </Button>
+          <Button
             variant="destructive"
             size="sm"
             onClick={async () => {

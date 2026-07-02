@@ -10,6 +10,9 @@ import {
   Menu,
   X,
   Droplet,
+  MessageSquareText,
+  Bell,
+  HeartHandshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -23,6 +26,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Users", href: "/users", icon: Users },
+  { label: "Blood Requests", href: "/blood-requests", icon: HeartHandshake },
+  { label: "Feedbacks", href: "/feedback", icon: MessageSquareText },
+  { label: "Notifications", href: "/notifications", icon: Bell },
 ];
 
 export function Sidebar() {
