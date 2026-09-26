@@ -7,6 +7,7 @@ import { RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/data-table";
 import type { AdminNotificationItem } from "./types";
+import { formatDateTime } from "@/lib/utils";
 
 export function NotificationList() {
   const [items, setItems] = useState<AdminNotificationItem[]>([]);
@@ -97,7 +98,7 @@ export function NotificationList() {
       label: "Date",
       render: (n) => (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {n.createdAt ? new Date(n.createdAt).toLocaleString() : "—"}
+          {formatDateTime(n.createdAt)}
         </span>
       ),
       hideOnMobile: true,

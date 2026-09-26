@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { RefreshCw, Trash2, MapPin } from "lucide-react";
 import { DataTable, type Column } from "@/components/data-table";
+import { queryKeys } from "@/lib/query-keys";
+import { formatDateTime } from "@/lib/utils";
 
 interface BloodRequestItem {
   id: string;
@@ -26,14 +29,6 @@ interface BloodRequestItem {
   note?: string;
   status: string;
   createdAt: { _seconds: number; _nanoseconds: number } | string | null;
-}
-
-function formatTimestamp(
-  ts: { _seconds: number } | string | null | undefined,
-): string {
-  if (!ts) return "—";
-  if (typeof ts === "string") return new Date(ts).toLocaleString();
-  return new Date(ts._seconds * 1000).toLocaleString();
 }
 
 function statusBadge(status: string) {
@@ -57,44 +52,36 @@ function statusBadge(status: string) {
 }
 
 export default function BloodRequestsPage() {
-  const [requests, setRequests] = useState<BloodRequestItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedRequest, setSelectedRequest] = useState<BloodRequestItem | null>(null);
   const pageSize = 20;
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { data, isLoading: loading, error, refetch } = useQuery({
+    queryKey: queryKeys.bloodRequests.list(),
+    queryFn: async () => {
       const res = await fetch("/api/blood-requests");
       if (!res.ok) throw new Error("Failed to fetch blood requests");
-      const data = await res.json();
-      setRequests(data.requests ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return (await res.json()) as { requests: BloodRequestItem[] };
+    },
+  });
+  const requests = data?.requests ?? [];
 
-  useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/blood-requests?id=${id}`, { method: "DELETE" }).then((res) => {
+        if (!res.ok) throw new Error("Delete failed");
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bloodRequests.list() });
+    },
+    onError: (err: Error) => alert("Failed to delete: " + err.message),
+  });
 
-  const deleteRequest = async (id: string) => {
+  const deleteRequest = (id: string) => {
     if (!confirm("Delete this blood request?")) return;
-    try {
-      const res = await fetch(`/api/blood-requests?id=${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Delete failed");
-      setRequests((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
-      alert("Failed to delete: " + (err instanceof Error ? err.message : err));
-    }
+    deleteMutation.mutate(id);
   };
 
   const lowerSearch = search.toLowerCase();
@@ -187,7 +174,7 @@ export default function BloodRequestsPage() {
       label: "Date",
       render: (r) => (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatTimestamp(r.createdAt)}
+          {formatDateTime(r.createdAt)}
         </span>
       ),
       hideOnMobile: true,
@@ -224,7 +211,7 @@ export default function BloodRequestsPage() {
               : "Blood requests submitted from the mobile app"}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchRequests}>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="mr-1.5 h-4 w-4" />
           Refresh
         </Button>
@@ -234,7 +221,7 @@ export default function BloodRequestsPage() {
         columns={columns}
         data={paged}
         isLoading={loading}
-        error={error}
+        error={error?.message}
         searchPlaceholder="Search by name, blood group, phone, status..."
         searchValue={search}
         onSearchChange={(v) => {

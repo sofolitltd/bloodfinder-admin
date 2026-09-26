@@ -9,7 +9,7 @@ export default function FeedbackLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen">
       <Sidebar />
       <div className="flex flex-1 flex-col">
         <Header />

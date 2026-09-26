@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const bloodGroup = searchParams.get("bloodGroup") || "";
     const district = searchParams.get("district") || "";
+    const country = searchParams.get("country") || "";
     const donorStatus = searchParams.get("donorStatus") || "";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limitParam = parseInt(searchParams.get("limit") || "20");
@@ -36,21 +37,30 @@ export async function GET(request: NextRequest) {
     let users: Record<string, unknown>[];
     let totalCount: number;
 
-    if (search) {
+    // `country` is filtered in memory rather than via `.where()` because combining it
+    // with the `createdAt` orderBy would require a composite Firestore index that
+    // doesn't exist for this field — the collection is small enough that this is fine.
+    if (search || country) {
       const allSnap = await query.get();
       let allUsers = allSnap.docs.map((doc) => ({
-        id: doc.id,
         ...doc.data(),
+        id: doc.id,
       })) as Record<string, unknown>[];
 
-      const lowerSearch = search.toLowerCase();
-      allUsers = allUsers.filter(
-        (u: Record<string, unknown>) =>
-          String(u.firstName || "").toLowerCase().includes(lowerSearch) ||
-          String(u.lastName || "").toLowerCase().includes(lowerSearch) ||
-          String(u.mobileNumber || "").toLowerCase().includes(lowerSearch) ||
-          String(u.email || "").toLowerCase().includes(lowerSearch)
-      );
+      if (country) {
+        allUsers = allUsers.filter((u: Record<string, unknown>) => String(u.country || "").trim() === country);
+      }
+
+      if (search) {
+        const lowerSearch = search.toLowerCase();
+        allUsers = allUsers.filter(
+          (u: Record<string, unknown>) =>
+            String(u.firstName || "").toLowerCase().includes(lowerSearch) ||
+            String(u.lastName || "").toLowerCase().includes(lowerSearch) ||
+            String(u.mobileNumber || "").toLowerCase().includes(lowerSearch) ||
+            String(u.email || "").toLowerCase().includes(lowerSearch)
+        );
+      }
 
       totalCount = allUsers.length;
       users = allUsers.slice(offset, offset + PAGE_SIZE);
@@ -60,8 +70,8 @@ export async function GET(request: NextRequest) {
 
       const snapshot = await query.offset(offset).limit(PAGE_SIZE).get();
       users = snapshot.docs.map((doc) => ({
-        id: doc.id,
         ...doc.data(),
+        id: doc.id,
       })) as Record<string, unknown>[];
     }
 

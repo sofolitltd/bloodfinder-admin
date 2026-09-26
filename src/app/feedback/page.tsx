@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Trash2, ShieldAlert } from "lucide-react";
 import { DataTable, type Column } from "@/components/data-table";
+import { queryKeys } from "@/lib/query-keys";
+import { formatDateTime } from "@/lib/utils";
 
 interface FeedbackItem {
   id: string;
@@ -14,50 +17,36 @@ interface FeedbackItem {
   createdAt: { _seconds: number; _nanoseconds: number } | string | null;
 }
 
-function formatTimestamp(
-  ts: { _seconds: number } | string | null | undefined,
-): string {
-  if (!ts) return "—";
-  if (typeof ts === "string") return new Date(ts).toLocaleString();
-  return new Date(ts._seconds * 1000).toLocaleString();
-}
-
 export default function FeedbackPage() {
-  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  const fetchFeedbacks = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { data, isLoading: loading, error, refetch } = useQuery({
+    queryKey: queryKeys.feedback.list(),
+    queryFn: async () => {
       const res = await fetch("/api/feedback");
       if (!res.ok) throw new Error("Failed to fetch feedbacks");
-      const data = await res.json();
-      setFeedbacks(data.feedbacks ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return (await res.json()) as { feedbacks: FeedbackItem[] };
+    },
+  });
+  const feedbacks = data?.feedbacks ?? [];
 
-  useEffect(() => {
-    fetchFeedbacks();
-  }, [fetchFeedbacks]);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/feedback?id=${id}`, { method: "DELETE" }).then((res) => {
+        if (!res.ok) throw new Error("Delete failed");
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.list() });
+    },
+    onError: (err: Error) => alert("Failed to delete: " + err.message),
+  });
 
-  const deleteFeedback = async (id: string) => {
+  const deleteFeedback = (id: string) => {
     if (!confirm("Delete this feedback?")) return;
-    try {
-      const res = await fetch(`/api/feedback?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed");
-      setFeedbacks((prev) => prev.filter((f) => f.id !== id));
-    } catch (err) {
-      alert("Failed to delete: " + (err instanceof Error ? err.message : err));
-    }
+    deleteMutation.mutate(id);
   };
 
   const lowerSearch = search.toLowerCase();
@@ -113,7 +102,7 @@ export default function FeedbackPage() {
       label: "Date",
       render: (fb) => (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatTimestamp(fb.createdAt)}
+          {formatDateTime(fb.createdAt)}
         </span>
       ),
       hideOnMobile: true,
@@ -148,7 +137,7 @@ export default function FeedbackPage() {
               : "User-submitted feedback from the mobile app"}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchFeedbacks}>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="mr-1.5 h-4 w-4" />
           Refresh
         </Button>
@@ -158,7 +147,7 @@ export default function FeedbackPage() {
         columns={columns}
         data={paged}
         isLoading={loading}
-        error={error}
+        error={error?.message}
         searchPlaceholder="Search by user, category, or message..."
         searchValue={search}
         onSearchChange={(v) => {

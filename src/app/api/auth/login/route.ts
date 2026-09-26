@@ -24,7 +24,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (email !== adminEmail || password !== adminPassword) {
+    let authenticated = email === adminEmail && password === adminPassword;
+
+    if (!authenticated && process.env.FIREBASE_PROJECT_ID) {
+      try {
+        const { getDb } = await import("@/lib/firebase/admin");
+        const { COLLECTION_NAMES } = await import("@/lib/constants");
+        const bcrypt = await import("bcryptjs");
+
+        const snapshot = await getDb()
+          .collection(COLLECTION_NAMES.ADMIN)
+          .where("email", "==", email.trim().toLowerCase())
+          .limit(1)
+          .get();
+
+        if (!snapshot.empty) {
+          const passwordHash = snapshot.docs[0].data().passwordHash as string;
+          authenticated = await bcrypt.compare(password, passwordHash);
+        }
+      } catch (error) {
+        console.error("Admin lookup error:", error);
+      }
+    }
+
+    if (!authenticated) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }

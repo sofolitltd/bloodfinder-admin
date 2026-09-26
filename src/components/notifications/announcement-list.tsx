@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Plus, Filter, Globe, MapPin, Users, Trash2 } from "lucide-react";
 import { DataTable, type Column } from "@/components/data-table";
 import type { AnnouncementItem } from "./types";
+import { formatDateTime } from "@/lib/utils";
 
 export function AnnouncementList({
   showCountryFilter = false,
@@ -108,7 +109,7 @@ export function AnnouncementList({
       label: "Date",
       render: (b) => (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {b.createdAt ? new Date(b.createdAt).toLocaleString() : "—"}
+          {formatDateTime(b.createdAt)}
         </span>
       ),
       hideOnMobile: true,

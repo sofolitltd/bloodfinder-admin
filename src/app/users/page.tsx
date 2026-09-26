@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BLOOD_GROUPS } from "@/lib/constants";
-import { formatName } from "@/lib/utils";
+import { formatName, formatDate } from "@/lib/utils";
+import { queryKeys } from "@/lib/query-keys";
 import { Ban, CheckCircle, Download, ShieldAlert } from "lucide-react";
 
 interface UserRow {
@@ -154,7 +156,7 @@ const columns: Column<UserRow>[] = [
     label: "Joined",
     render: (user) => (
       <span className="text-xs text-muted-foreground">
-        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+        {formatDate(user.createdAt)}
       </span>
     ),
     hideOnMobile: true,
@@ -172,58 +174,65 @@ export default function UsersPage() {
 function UsersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [bloodGroup, setBloodGroup] = useState(searchParams.get("bloodGroup") || "");
   const [donorStatus, setDonorStatus] = useState(searchParams.get("donorStatus") || "");
+  const [country, setCountry] = useState(searchParams.get("country") || "");
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
-  const [totalPages, setTotalPages] = useState(1);
 
   const syncUrl = useCallback(
-    (overrides: { search?: string; bloodGroup?: string; donorStatus?: string; page?: number }) => {
+    (overrides: { search?: string; bloodGroup?: string; donorStatus?: string; country?: string; page?: number }) => {
       const params = new URLSearchParams();
       const s = overrides.search ?? search;
       const bg = overrides.bloodGroup ?? bloodGroup;
       const ds = overrides.donorStatus ?? donorStatus;
+      const c = overrides.country ?? country;
       const p = overrides.page ?? page;
       if (s) params.set("search", s);
       if (bg) params.set("bloodGroup", bg);
       if (ds) params.set("donorStatus", ds);
+      if (c) params.set("country", c);
       params.set("page", String(p));
       router.replace(`/users?${params}`, { scroll: false });
     },
-    [router, search, bloodGroup, donorStatus, page],
+    [router, search, bloodGroup, donorStatus, country, page],
   );
 
-  const fetchUsers = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const filters = { search, bloodGroup, donorStatus, country, page };
 
-    try {
+  const {
+    data,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: queryKeys.users.list(filters),
+    queryFn: async () => {
       const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (bloodGroup) params.set("bloodGroup", bloodGroup);
-      if (donorStatus) params.set("donorStatus", donorStatus);
-      params.set("page", String(page));
+      if (filters.search) params.set("search", filters.search);
+      if (filters.bloodGroup) params.set("bloodGroup", filters.bloodGroup);
+      if (filters.donorStatus) params.set("donorStatus", filters.donorStatus);
+      if (filters.country) params.set("country", filters.country);
+      params.set("page", String(filters.page));
 
       const response = await fetch(`/api/users?${params}`);
       if (!response.ok) throw new Error("Failed to fetch users");
 
-      const data = await response.json();
-      setUsers(data.users);
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch users");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [search, bloodGroup, donorStatus, page]);
+      return (await response.json()) as { users: UserRow[]; totalPages: number };
+    },
+    placeholderData: keepPreviousData,
+  });
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  const users = data?.users ?? [];
+  const totalPages = data?.totalPages ?? 1;
+
+  const { data: countriesData } = useQuery({
+    queryKey: queryKeys.users.countries(),
+    queryFn: async () => {
+      const res = await fetch("/api/users/countries");
+      return (await res.json()) as { countries: { country: string; count: number }[] };
+    },
+  });
+  const countries = countriesData?.countries ?? [];
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -245,6 +254,13 @@ function UsersPageContent() {
     syncUrl({ donorStatus: val, page: 1 });
   };
 
+  const handleCountryChange = (v: string | null) => {
+    const val = !v || v === "all" ? "" : v;
+    setCountry(val);
+    setPage(1);
+    syncUrl({ country: val, page: 1 });
+  };
+
   const handlePageChange = (p: number) => {
     setPage(p);
     syncUrl({ page: p });
@@ -256,6 +272,7 @@ function UsersPageContent() {
       if (search) params.set("search", search);
       if (bloodGroup) params.set("bloodGroup", bloodGroup);
       if (donorStatus) params.set("donorStatus", donorStatus);
+      if (country) params.set("country", country);
       params.set("page", "1");
       params.set("limit", "10000");
 
@@ -332,7 +349,7 @@ function UsersPageContent() {
         columns={columns}
         data={users}
         isLoading={isLoading}
-        error={error}
+        error={error?.message}
         searchPlaceholder="Search by name, mobile, or email..."
         searchValue={search}
         onSearchChange={handleSearchChange}
@@ -371,6 +388,22 @@ function UsersPageContent() {
                 <SelectItem value="donor">Donors</SelectItem>
                 <SelectItem value="non-donor">Non-Donors</SelectItem>
                 <SelectItem value="emergency">Emergency Donors</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={country}
+              onValueChange={handleCountryChange}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Country" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Countries</SelectItem>
+                {countries.map((c) => (
+                  <SelectItem key={c.country} value={c.country}>
+                    {c.country} ({c.count})
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

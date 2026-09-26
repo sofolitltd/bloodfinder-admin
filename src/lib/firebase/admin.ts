@@ -1,9 +1,12 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getMessaging, Messaging } from "firebase-admin/messaging";
+import { getStorage } from "firebase-admin/storage";
+import type { Bucket } from "@google-cloud/storage";
 
 let _db: Firestore | null = null;
 let _messaging: Messaging | null = null;
+let _bucket: Bucket | null = null;
 
 function getFirebaseConfig() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -38,13 +41,18 @@ function init() {
           clientEmail: config.clientEmail,
           privateKey: config.privateKey,
         }),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
       },
       appName
     );
   }
 
-  _db = getFirestore(getApps().find((app) => app.name === appName)!);
-  _messaging = getMessaging(getApps().find((app) => app.name === appName)!);
+  const app = getApps().find((app) => app.name === appName)!;
+  _db = getFirestore(app);
+  _messaging = getMessaging(app);
+  if (process.env.FIREBASE_STORAGE_BUCKET) {
+    _bucket = getStorage(app).bucket();
+  }
 }
 
 export function getDb(): Firestore {
@@ -55,6 +63,12 @@ export function getDb(): Firestore {
 export function getMessagingInstance(): Messaging {
   if (!_messaging) init();
   return _messaging!;
+}
+
+/** Returns the Storage bucket, or null if FIREBASE_STORAGE_BUCKET is not configured. */
+export function getBucket(): Bucket | null {
+  if (!_db) init();
+  return _bucket;
 }
 
 // Re-export for convenience

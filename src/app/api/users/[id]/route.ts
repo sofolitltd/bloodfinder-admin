@@ -23,7 +23,7 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const user = { id: doc.id, ...doc.data() };
+    const user = { ...doc.data(), id: doc.id };
 
     // Gracefully fetch relational data — skip silently if index is missing
     let donations: Record<string, unknown>[] = [];

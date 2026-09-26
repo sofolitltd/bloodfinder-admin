@@ -13,6 +13,9 @@ import {
   MessageSquareText,
   Bell,
   HeartHandshake,
+  ShieldCheck,
+  Users2,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -27,8 +30,11 @@ const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Users", href: "/users", icon: Users },
   { label: "Blood Requests", href: "/blood-requests", icon: HeartHandshake },
+  { label: "Communities", href: "/communities", icon: Users2 },
+  { label: "Blood Banks", href: "/blood-banks", icon: Landmark },
   { label: "Feedbacks", href: "/feedback", icon: MessageSquareText },
   { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Admins", href: "/admins", icon: ShieldCheck },
 ];
 
 export function Sidebar() {

@@ -20,8 +20,8 @@ export async function GET() {
       .get();
 
     const feedbacks = snap.docs.map((doc) => ({
-      id: doc.id,
       ...doc.data(),
+      id: doc.id,
     }));
 
     // Fetch user names for all unique uids

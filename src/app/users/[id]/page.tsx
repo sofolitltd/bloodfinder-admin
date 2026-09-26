@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -22,9 +22,11 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { formatName } from "@/lib/utils";
+import { formatName, formatDate } from "@/lib/utils";
+import { queryKeys } from "@/lib/query-keys";
 
 interface FullUserDetail {
+  user: Record<string, unknown>;
   donations: Record<string, unknown>[];
   bloodRequests: Record<string, unknown>[];
 }
@@ -32,45 +34,50 @@ interface FullUserDetail {
 export default function UserDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [data, setData] = useState<FullUserDetail | null>(null);
-  const [user, setUser] = useState<Record<string, unknown> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const userId = String(params.id);
 
-  const fetchUser = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/users/${params.id}`);
+  const { data, isLoading, error } = useQuery({
+    queryKey: queryKeys.users.detail(userId),
+    queryFn: async () => {
+      const response = await fetch(`/api/users/${userId}`);
       if (!response.ok) throw new Error("User not found");
-      const json = await response.json();
-      setUser(json.user);
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch user");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.id]);
+      return (await response.json()) as FullUserDetail;
+    },
+  });
+  const user = data?.user ?? null;
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  const updateUser = async (updates: Record<string, unknown>) => {
-    try {
-      const response = await fetch(`/api/users/${params.id}`, {
+  const updateUserMutation = useMutation({
+    mutationFn: (updates: Record<string, unknown>) =>
+      fetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
-      });
-      if (!response.ok) throw new Error("Update failed");
+      }).then((res) => {
+        if (!res.ok) throw new Error("Update failed");
+      }),
+    onSuccess: () => {
       toast.success("User updated");
-      fetchUser();
-    } catch {
-      toast.error("Failed to update user");
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+    onError: () => toast.error("Failed to update user"),
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: () => fetch(`/api/users/${userId}`, { method: "DELETE" }).then((res) => {
+      if (!res.ok) throw new Error();
+    }),
+    onSuccess: () => {
+      toast.success("User deleted");
+      queryClient.removeQueries({ queryKey: queryKeys.users.detail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      router.push("/users");
+    },
+    onError: () => toast.error("Failed to delete user"),
+  });
+
+  const updateUser = (updates: Record<string, unknown>) => updateUserMutation.mutate(updates);
 
   if (isLoading) {
     return (
@@ -91,7 +98,9 @@ export default function UserDetailPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-6 text-red-600">{error}</CardContent>
+          <CardContent className="p-6 text-red-600">
+            {error?.message || "User not found"}
+          </CardContent>
         </Card>
       </div>
     );
@@ -112,7 +121,7 @@ export default function UserDetailPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight">{fullName}</h1>
-            <p className="text-xs text-muted-foreground">ID: {params.id}</p>
+            <p className="text-xs text-muted-foreground">ID: {userId}</p>
           </div>
         </div>
       </div>
@@ -197,15 +206,7 @@ export default function UserDetailPage() {
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3" /> Joined
                   </p>
-                  <p className="font-medium">
-                    {user.createdAt
-                      ? new Date(String(user.createdAt)).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
-                      : "—"}
-                  </p>
+                  <p className="font-medium">{formatDate(user.createdAt)}</p>
                 </div>
               </div>
             </div>
@@ -306,7 +307,7 @@ export default function UserDetailPage() {
             size="sm"
             onClick={() =>
               router.push(
-                `/notifications/send?userId=${params.id}&name=${encodeURIComponent(fullName)}`
+                `/notifications/send?userId=${userId}&name=${encodeURIComponent(fullName)}`
               )
             }
           >
@@ -316,18 +317,10 @@ export default function UserDetailPage() {
           <Button
             variant="destructive"
             size="sm"
-            onClick={async () => {
+            disabled={deleteUserMutation.isPending}
+            onClick={() => {
               if (!confirm("Delete this user permanently?")) return;
-              try {
-                const res = await fetch(`/api/users/${params.id}`, {
-                  method: "DELETE",
-                });
-                if (!res.ok) throw new Error();
-                toast.success("User deleted");
-                router.push("/users");
-              } catch {
-                toast.error("Failed to delete user");
-              }
+              deleteUserMutation.mutate();
             }}
           >
             <Trash2 className="mr-1.5 h-4 w-4" />
